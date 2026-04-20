@@ -28,21 +28,31 @@ export function PromptInput({ onGenerate, isLoading }: PromptInputProps) {
     setPrompt(example);
   };
 
+  const handleRandomExample = () => {
+    const current = prompt.trim();
+    const filtered = EXAMPLES.filter((e) => e !== current);
+    const pool = filtered.length > 0 ? filtered : EXAMPLES;
+    setPrompt(pool[Math.floor(Math.random() * pool.length)]);
+  };
+
   return (
     <div className="prompt-section">
       <form onSubmit={handleSubmit} className="prompt-form">
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="만들고 싶은 컴포넌트를 설명해주세요..."
-          className="prompt-textarea"
-          rows={3}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              handleSubmit(e);
-            }
-          }}
-        />
+        <div className="prompt-textarea-wrapper">
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="만들고 싶은 컴포넌트를 설명해주세요..."
+            className="prompt-textarea"
+            rows={3}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                handleSubmit(e);
+              }
+            }}
+          />
+          <span className="prompt-char-count">{prompt.length}자</span>
+        </div>
         <button
           type="submit"
           className="btn-generate"
@@ -57,6 +67,14 @@ export function PromptInput({ onGenerate, isLoading }: PromptInputProps) {
       </form>
       <div className="prompt-examples">
         <span className="examples-label">예시:</span>
+        <button
+          type="button"
+          className="btn-random-example"
+          onClick={handleRandomExample}
+          title="랜덤 추천 프롬프트 입력"
+        >
+          ⚄ RANDOM
+        </button>
         {EXAMPLES.map((example) => (
           <button
             key={example}

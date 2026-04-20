@@ -48,6 +48,13 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+const SSE_HEADERS = {
+  ...CORS_HEADERS,
+  'Content-Type': 'text/event-stream',
+  'Cache-Control': 'no-cache',
+  'Connection': 'keep-alive',
+};
+
 type Provider = 'anthropic' | 'google';
 
 const ENV_KEYS: Record<Provider, string | undefined> = {
@@ -89,6 +96,112 @@ async function callAnthropic(prompt: string, apiKey: string): Promise<string> {
     .join('');
 }
 
+async function* streamAnthropic(prompt: string, apiKey: string): AsyncGenerator<string> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      stream: true,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!response.ok) throw new Error(`Claude API error: ${response.status}`);
+  if (!response.body) throw new Error('No response body');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const json = line.slice(6).trim();
+      if (json === '[DONE]') return;
+
+      try {
+        const parsed = JSON.parse(json) as {
+          type: string;
+          delta?: { type: string; text?: string };
+        };
+        if (
+          parsed.type === 'content_block_delta' &&
+          parsed.delta?.type === 'text_delta' &&
+          parsed.delta.text
+        ) {
+          yield parsed.delta.text;
+        }
+      } catch {
+        // 파싱 불가 라인 무시
+      }
+    }
+  }
+}
+
+async function* streamGoogle(prompt: string, apiKey: string): AsyncGenerator<string> {
+  const model = 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 8192 },
+    }),
+  });
+
+  if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
+  if (!response.body) throw new Error('No response body');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const json = line.slice(6).trim();
+
+      try {
+        const parsed = JSON.parse(json) as {
+          candidates?: Array<{
+            content: { parts: Array<{ text?: string }> };
+            finishReason?: string;
+          }>;
+        };
+        const text =
+          parsed.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+        if (text) yield text;
+      } catch {
+        // 파싱 불가 라인 무시
+      }
+    }
+  }
+}
+
 async function callGoogle(prompt: string, apiKey: string): Promise<string> {
   const model = 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -124,6 +237,12 @@ async function callGoogle(prompt: string, apiKey: string): Promise<string> {
       ?.map((part) => part.text)
       ?.join('') ?? ''
   );
+}
+
+function friendlyError(message: string): string {
+  if (message.includes('503')) return 'API 서버가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도해주세요.';
+  if (message.includes('429')) return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
+  return message;
 }
 
 function stripCodeFences(text: string): string {
@@ -164,6 +283,74 @@ const server = Bun.serve({
       );
     }
 
+    if (req.method === 'POST' && url.pathname === '/api/generate-stream') {
+      let resolvedKey: string | null = null;
+      try {
+        const { prompt, apiKey, provider = 'anthropic' } = (await req.json()) as {
+          prompt: string;
+          apiKey?: string;
+          provider?: Provider;
+        };
+
+        resolvedKey = resolveApiKey(provider, apiKey);
+
+        if (!resolvedKey) {
+          return Response.json(
+            { error: `API key is required. Set ${provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'GOOGLE_API_KEY'} in .env or enter it manually.` },
+            { status: 400, headers: CORS_HEADERS }
+          );
+        }
+
+        if (!prompt) {
+          return Response.json(
+            { error: 'Prompt is required' },
+            { status: 400, headers: CORS_HEADERS }
+          );
+        }
+
+        const key = resolvedKey;
+        const generator = provider === 'google'
+          ? streamGoogle(prompt, key)
+          : streamAnthropic(prompt, key);
+
+        const encode = (data: string) => new TextEncoder().encode(data);
+
+        const stream = new ReadableStream({
+          async start(controller) {
+            const send = (data: string) => {
+              try {
+                controller.enqueue(encode(data));
+              } catch {
+                // 클라이언트 연결 끊김 시 무시
+              }
+            };
+
+            let fullText = '';
+            try {
+              for await (const chunk of generator) {
+                fullText += chunk;
+                send(`event: chunk\ndata: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+              }
+              const finalCode = ensureRenderCall(stripCodeFences(fullText));
+              send(`event: done\ndata: ${JSON.stringify({ type: 'done', code: finalCode })}\n\n`);
+            } catch (err) {
+              const raw = err instanceof Error ? err.message : 'Unknown error';
+              console.error('[generate-stream] error:', raw);
+              send(`event: error\ndata: ${JSON.stringify({ type: 'error', message: friendlyError(raw) })}\n\n`);
+            } finally {
+              try { controller.close(); } catch { /* 이미 닫힘 */ }
+            }
+          },
+          cancel() { /* 클라이언트가 연결 종료 — 정상 취소 */ },
+        });
+
+        return new Response(stream, { headers: SSE_HEADERS });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return Response.json({ error: message }, { status: 500, headers: CORS_HEADERS });
+      }
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/generate') {
       try {
         const { prompt, apiKey, provider = 'anthropic' } = (await req.json()) as {
@@ -199,22 +386,8 @@ const server = Bun.serve({
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
 
-        if (message.includes('503')) {
-          return Response.json(
-            { error: 'API 서버가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도해주세요.' },
-            { status: 503, headers: CORS_HEADERS }
-          );
-        }
-
-        if (message.includes('429')) {
-          return Response.json(
-            { error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
-            { status: 429, headers: CORS_HEADERS }
-          );
-        }
-
         return Response.json(
-          { error: message },
+          { error: friendlyError(message) },
           { status: 500, headers: CORS_HEADERS }
         );
       }

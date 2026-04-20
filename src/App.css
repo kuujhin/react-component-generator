@@ -196,8 +196,15 @@
   align-items: flex-end;
 }
 
-.prompt-textarea {
+.prompt-textarea-wrapper {
   flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.prompt-textarea {
+  width: 100%;
   padding: 0.75rem 1rem;
   background: var(--c-bg);
   border: 1px solid var(--c-border-hi);
@@ -209,6 +216,16 @@
   line-height: 1.6;
   caret-color: var(--c-green-hi);
   transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.prompt-char-count {
+  align-self: flex-end;
+  margin-top: 0.25rem;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--c-text-mute);
+  letter-spacing: 0.05em;
 }
 
 .prompt-textarea:focus {
@@ -294,6 +311,25 @@
   color: var(--c-amber);
   background: rgba(255, 170, 0, 0.06);
   text-shadow: var(--glow-amber);
+}
+
+.btn-random-example {
+  padding: 0.2rem 0.65rem;
+  background: transparent;
+  border: 1px solid var(--c-amber);
+  color: var(--c-amber);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  text-shadow: var(--glow-amber);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-random-example:hover {
+  background: rgba(255, 170, 0, 0.12);
+  box-shadow: var(--glow-amber);
 }
 
 /* ─── Error Banner ───────────────────────────── */
@@ -700,5 +736,41 @@
   .btn-generate {
     width: 100%;
     text-align: center;
+  }
+}
+
+/* ─── Streaming Cursor ─────────────────────────── */
+@keyframes stream-cursor {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: stream-cursor 0.6s step-end infinite;
+  color: var(--c-green-hi);
+  text-shadow: var(--glow-green);
+}
+
+.tab--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Accessibility: Reduced Motion ───────────── */
+@media (prefers-reduced-motion: reduce) {
+  .app {
+    animation: none;
+  }
+
+  .header-left h1::after {
+    animation: none;
+  }
+
+  .loading-pulse {
+    animation: none;
+  }
+
+  .cursor-blink {
+    animation: none;
   }
 }

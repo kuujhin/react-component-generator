@@ -12,7 +12,7 @@ Bun HTTP server (port 3002) that proxies AI requests, manages API keys, and proc
 - Fetch API for HTTP requests (not axios or other libraries)
 - Plain JavaScript (no TypeScript runtime; TS compilation happens at build time only)
 - CORS headers required for all responses
-- Streaming not supported; return full responses
+- SSE streaming supported at `/api/generate-stream`; non-streaming fallback at `/api/generate`
 
 ## Implementation Patterns
 
@@ -32,8 +32,10 @@ Bun HTTP server (port 3002) that proxies AI requests, manages API keys, and proc
 - Env keys checked at startup via ENV_KEYS object
 
 **Provider Support Pattern**
-- New providers added as: `callProvider(prompt: string, apiKey: string): Promise<string>`
-- Return plain code string (post-processed by stripMarkdownFences + ensureRenderCall)
+- Non-streaming: `callProvider(prompt: string, apiKey: string): Promise<string>`
+- Streaming: `async function* streamProvider(prompt, apiKey): AsyncGenerator<string>` — yield raw text chunks
+- `done` event carries final code (after `stripCodeFences` + `ensureRenderCall`)
+- SSE format: `event: chunk|done|error\ndata: {...}\n\n`
 - Catch and rethrow provider errors with descriptive messages
 
 ## Testing Strategy
@@ -67,6 +69,6 @@ Verify:
 
 3. **Code Validation Before Return**: Do not return code that violates react-live contract. Catch and reject at stripMarkdownFences + ensureRenderCall stage.
 
-4. **No Streaming or Chunking**: Bun's streaming is complex; block on full response from AI, then return to client.
+4. **SSE Streaming Pattern**: Use `ReadableStream` + `AsyncGenerator` for `/api/generate-stream`. Send `chunk` events during generation, `done` event with post-processed final code, `error` event on failure. Apply `SSE_HEADERS` (includes CORS headers).
 
 5. **CORS Headers on All Responses**: Missing CORS header breaks frontend. Check twice.
