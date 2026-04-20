@@ -1,5 +1,43 @@
 {
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash .claude/hooks/check-test.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/block-sensitive-files.js",
+            "timeout": 10,
+            "statusMessage": "민감 파일 접근 검사 중..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "vitest run",
+            "timeout": 120,
+            "statusMessage": "커밋 전 테스트 실행 중..."
+          }
+        ]
+      }
+    ]
   }
 }
