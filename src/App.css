@@ -569,6 +569,7 @@
   padding: 0.55rem 1.25rem;
   border-bottom: 1px solid var(--c-border);
   background: var(--c-bg-mid);
+  gap: 1rem;
 }
 
 .panel-header h3 {
@@ -577,6 +578,39 @@
   color: var(--c-text-dim);
   letter-spacing: 0.15em;
   text-transform: uppercase;
+}
+
+.viewport-buttons {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.btn-viewport {
+  padding: 0.2rem 0.65rem;
+  background: transparent;
+  border: 1px solid var(--c-border-hi);
+  color: var(--c-text-dim);
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.btn-viewport:hover {
+  border-color: var(--c-green-mid);
+  color: var(--c-green-hi);
+  text-shadow: var(--glow-green);
+}
+
+.btn-viewport--active {
+  background: var(--c-green-lo);
+  border-color: var(--c-green-hi);
+  color: var(--c-green-hi);
+  text-shadow: var(--glow-green);
+  box-shadow: var(--glow-green);
 }
 
 /* ─── Preview ────────────────────────────────── */
