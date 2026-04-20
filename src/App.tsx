@@ -113,7 +113,7 @@ function App() {
 
         {components.length === 0 && !isLoading && (
           <div className="empty-state">
-            <div className="empty-icon">&#9672;</div>
+            <div className="empty-icon">░▒▓</div>
             <p>아직 생성된 컴포넌트가 없습니다.</p>
             <p>위에서 컴포넌트를 설명하고 생성 버튼을 눌러보세요!</p>
           </div>

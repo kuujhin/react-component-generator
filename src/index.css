@@ -1,3 +1,29 @@
+/* ═══════════════════════════════════════════════════════════
+   PHOSPHOR-84  |  Retro CRT Terminal Theme
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --c-bg:         #030c03;
+  --c-bg-card:    #070f07;
+  --c-bg-mid:     #0d1a0d;
+  --c-green-hi:   #00ff5e;
+  --c-green-mid:  #00cc44;
+  --c-green-lo:   #00451a;
+  --c-amber:      #ffaa00;
+  --c-amber-dim:  #664400;
+  --c-text:       #b8ffaa;
+  --c-text-dim:   #5a8a5a;
+  --c-text-mute:  #2a522a;
+  --c-border:     #1a3d1a;
+  --c-border-hi:  #2a6b2a;
+  --c-red:        #ff5555;
+  --glow-green:   0 0 8px #00ff5e88, 0 0 20px #00ff5e33;
+  --glow-amber:   0 0 8px #ffaa0088, 0 0 20px #ffaa0033;
+  --glow-red:     0 0 8px rgba(255,85,85,0.5);
+  --font-display: 'VT323', monospace;
+  --font-body:    'Share Tech Mono', monospace;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,8 +31,52 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
+  font-family: var(--font-body);
+  background: var(--c-bg);
+  color: var(--c-text);
   min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* CRT Scanlines */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* CRT Vignette */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 50%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--c-bg); }
+::-webkit-scrollbar-thumb { background: var(--c-green-lo); }
+::-webkit-scrollbar-thumb:hover { background: var(--c-green-mid); }
+
+/* Text selection */
+::selection {
+  background: var(--c-green-lo);
+  color: var(--c-green-hi);
 }
